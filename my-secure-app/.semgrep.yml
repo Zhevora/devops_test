@@ -1,0 +1,14 @@
+rules:
+  - id: no-debug-true
+    patterns:
+      - pattern: app.run(debug=True, ...)
+    message: "Flask debug mode must be disabled in production"
+    languages: [python]
+    severity: ERROR
+
+  - id: no-shell-true
+    patterns:
+      - pattern: subprocess.run(..., shell=True, ...)
+    message: "shell=True is a command injection risk"
+    languages: [python]
+    severity: ERROR

@@ -1,0 +1,92 @@
+name: Secure CI/CD Pipeline
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+
+  # -- Job 1: Static Analysis (SAST) ----------------------
+  semgrep:
+    name: Semgrep SAST
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write    # needed to upload SARIF results
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: >-
+            .semgrep.yml
+            p/python
+            p/owasp-top-ten
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+        # This action exits non-zero on findings -> blocks the job automatically
+
+  # -- Job 2: Dependency Scanning (SCA) --------------------
+  snyk-deps:
+    name: Snyk Dependency Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependences
+        run: pip install -r app/requirements.txt
+
+      - name: Run Snyk - check for vulnerabilities
+        uses: snyk/actions/python@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --file=app/requirements.txt
+        # --severity-threshold=high means only high/critical findings block the build
+        # Remove the flag to fail on medium too
+
+  # -- Job 3: Container Scanning ----------------------------
+  snyk-container:
+    name: Snyk Container Scan
+    runs-on: ubuntu-latest
+    needs: snyk-deps    # only run if dep scan passes
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t my-secure-app:${{ github.sha }} .
+
+      - name: Run Snyk - scan container image
+        uses: snyk/actions/docker@master
+        env:
+          SNYK_TOKEN ${{ secrets.SNYK_TOKEN }}
+        with:
+          image: my-secure-app:${{ github.sha }}
+          args: --severity-threshold=high
+
+  # -- Job 4: Deploy (only if all security jobs pass) ----------
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    needs: [semgrep, snyk-deps, snyk-container]
+    if: github.ref == 'refs/head/main' && github.event_name == 'push'
+
+    steps:
+      - name: Deploy to staging
+        run: echo "All security gates passed - deploying to staging"
+        # Replace this with your actual deploy step:
+        # - Push image to ECR/GHCR
+        # - kubectl apply
+        # - SSH deploy, etc.
+      
