@@ -43,8 +43,8 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependences
-        run: pip install -r app/requirements.txt
+      - name: Install Snyk CLI
+        run: npm install -g snyk
 
       - name: Run Snyk - check for vulnerabilities
         uses: snyk/actions/python@master
