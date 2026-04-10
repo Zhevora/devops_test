@@ -43,15 +43,16 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install dependencies
+        run: pip install -r app/requirements.txt
+
       - name: Install Snyk CLI
         run: npm install -g snyk
 
       - name: Run Snyk - check for vulnerabilities
-        uses: snyk/actions/python@master
+        run: snyk test --severity-threshold=high --file=app/requirements
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          args: --severity-threshold=high --file=app/requirements.txt
         # --severity-threshold=high means only high/critical findings block the build
         # Remove the flag to fail on medium too
 
